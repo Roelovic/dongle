@@ -1,0 +1,210 @@
+substitutions:
+  device_name: eth-dongle
+  device_description: "P1 Dongle with ethernet access"
+  friendly_name: ETH Dongle P1
+  prj_version: "2023.1.2"
+
+esphome:
+  name: ${device_name}
+  comment: "${device_description}" 
+  platform: ESP32
+  board: wt32-eth01
+  platformio_options:
+    upload_speed: 1500000
+  project: 
+    name: "smartstuff.eth_dongle"
+    version: ${prj_version}
+    
+ethernet:
+  type: LAN8720
+  mdc_pin: GPIO23
+  mdio_pin: GPIO18
+  clk_mode: GPIO0_IN
+  phy_addr: 1
+  power_pin: GPIO16
+
+ota:
+web_server:
+
+dashboard_import:
+  package_import_url: github://mhendriks/esphome-p1/eth-dongle-p1.yaml@main
+
+# Enable logging
+logger:
+  level: DEBUG
+
+globals:
+  - id: totalWaterUsage
+    type: int
+    restore_value: true      # aanpassen naar no indien de nieuwe waarde onder de oude ligt
+    initial_value: '0'       # beginstand van je watermeter -> aanpassen via Home Assistant services
+   
+# Enable Home Assistant API
+api:
+  services:
+    - service: eth_dongle_reboot
+      then:
+        - button.press:
+            id: reboot
+  
+uart:
+  rx_pin:
+    number: 15
+    inverted: true
+  baud_rate: 115200
+  # Prevents checksum errors (see https://github.com/esphome/issues/issues/2577#issuecomment-949409869)
+  rx_buffer_size: 1700
+  
+dsmr:
+
+button:  
+  - platform: restart
+    name: "_Restart device"
+    id: reboot
+  - platform: factory_reset
+    name: "_Restart with Factory Default Settings"
+ 
+      
+sensor:
+  - platform: pulse_counter
+    pin: 
+      number: 4
+      mode:
+        input: true
+        pullup: true 
+    id: watermeter_pulse
+    name: "Watermeter pulse"
+    count_mode:
+      rising_edge: DISABLE
+      falling_edge: INCREMENT
+    state_class: measurement
+    update_interval: 1s
+#     internal_filter: 100us
+    accuracy_decimals: 0
+    unit_of_measurement: 'L/min'
+  
+  - platform: template
+    name: "Watermeter total"
+    state_class: "total_increasing"
+    device_class: "water"
+    icon: mdi:water
+    update_interval: 5s
+    unit_of_measurement: L
+    accuracy_decimals: 0
+    lambda: |-
+      if (id(watermeter_pulse).state > 0) id(totalWaterUsage) += 1;
+      return id(totalWaterUsage);
+
+  - platform: dsmr
+#    energy_delivered_lux:
+#      name: "Energy Consumed Luxembourg"
+#      state_class: total_increasing
+    energy_delivered_tariff1:
+      name: "Energy Consumed Tariff 1"
+      state_class: total_increasing
+    energy_delivered_tariff2:
+      name: "Energy Consumed Tariff 2"
+      state_class: total_increasing
+#    energy_returned_lux:
+#      name: "Energy Produced Luxembourg"
+#      state_class: total_increasing
+    energy_returned_tariff1:
+      name: "Energy Produced Tariff 1"
+      state_class: total_increasing
+    energy_returned_tariff2:
+      name: "Energy Produced Tariff 2"
+      state_class: total_increasing
+    power_delivered:
+      name: "Power Consumed"
+      unit_of_measurement: "W"
+      state_class: "measurement"
+      accuracy_decimals: 0
+      filters:
+        - multiply: 1000
+    power_returned:
+      name: "Power Produced"
+      unit_of_measurement: "W"
+      state_class: "measurement"
+      accuracy_decimals: 0
+      filters:
+        - multiply: 1000
+    electricity_failures:
+      name: "Electricity Failures"
+      icon: mdi:alert
+    electricity_long_failures:
+      name: "Long Electricity Failures"
+      icon: mdi:alert
+    voltage_l1:
+      name: "Voltage Phase 1"
+    voltage_l2:
+      name: "Voltage Phase 2"
+    voltage_l3:
+      name: "Voltage Phase 3"
+    current_l1:
+      name: "Current Phase 1"
+    current_l2:
+      name: "Current Phase 2"
+    current_l3:
+      name: "Current Phase 3"
+    power_delivered_l1:
+      name: "Power Consumed Phase 1"
+      unit_of_measurement: "W"
+      state_class: "measurement"
+      accuracy_decimals: 0
+      filters:
+        - multiply: 1000
+    power_delivered_l2:
+      name: "Power Consumed Phase 2"
+      unit_of_measurement: "W"
+      state_class: "measurement"
+      accuracy_decimals: 0
+      filters:
+        - multiply: 1000
+    power_delivered_l3:
+      name: "Power Consumed Phase 3"
+      unit_of_measurement: "W"
+      state_class: "measurement"
+      accuracy_decimals: 0
+      filters:
+        - multiply: 1000
+    power_returned_l1:
+      name: "Power Produced Phase 1"
+      unit_of_measurement: "W"
+      state_class: "measurement"
+      accuracy_decimals: 0
+      filters:
+        - multiply: 1000
+    power_returned_l2:
+      name: "Power Produced Phase 2"
+      unit_of_measurement: "W"
+      state_class: "measurement"
+      accuracy_decimals: 0
+      filters:
+        - multiply: 1000
+    power_returned_l3:
+      name: "Power Produced Phase 3"
+      unit_of_measurement: "W"
+      state_class: "measurement"
+      accuracy_decimals: 0
+      filters:
+        - multiply: 1000
+    gas_delivered:
+      name: "Gas Consumed"
+      state_class: total_increasing
+    gas_delivered_be:
+      name: "Gas Consumed Belgium"
+      state_class: total_increasing
+  - platform: uptime
+    name: "_Uptime"
+      
+text_sensor:
+  - platform: dsmr
+    identification:
+      name: "DSMR Identification"
+    p1_version:
+      name: "DSMR Version"
+    p1_version_be:
+      name: "DSMR Version Belgium"
+  - platform: version
+    name: "_ESPHome Version"
+    hide_timestamp: true
